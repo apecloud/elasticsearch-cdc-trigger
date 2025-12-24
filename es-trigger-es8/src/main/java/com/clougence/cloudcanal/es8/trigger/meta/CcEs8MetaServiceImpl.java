@@ -29,56 +29,61 @@ public class CcEs8MetaServiceImpl implements CcMetaService {
 
     private static final Logger log = LoggerFactory.getLogger(CcEs8MetaServiceImpl.class);
 
+    public TypeMapping buildTriggerIdxMapping() {
+        Map<String, Property> properties = new HashMap<>();
+
+        Property.Builder scnF = new Property.Builder();
+        LongNumberProperty scnP = new LongNumberProperty.Builder().build();
+        scnF.long_(scnP);
+        properties.put("scn", scnF.build());
+
+        Property.Builder idxNameF = new Property.Builder();
+        TextProperty.Builder idxNameP = new TextProperty.Builder();
+        idxNameP.index(true);
+        idxNameP.analyzer("standard");
+        idxNameF.text(idxNameP.build());
+        properties.put("idx_name", idxNameF.build());
+
+        // I:INSERT,U:UPDATE,D:DELETE
+        Property.Builder eventTypeF = new Property.Builder();
+        TextProperty.Builder eventTypeP = new TextProperty.Builder();
+        eventTypeP.index(true);
+        eventTypeP.analyzer("standard");
+        eventTypeF.text(eventTypeP.build());
+        properties.put("event_type", eventTypeF.build());
+
+        Property.Builder pkF = new Property.Builder();
+        TextProperty.Builder pkP = new TextProperty.Builder();
+        pkP.index(true);
+        pkP.analyzer("standard");
+        pkF.text(pkP.build());
+        properties.put("pk", pkF.build());
+
+        Property.Builder rowDataF = new Property.Builder();
+        TextProperty.Builder rowDataP = new TextProperty.Builder();
+        rowDataP.index(false);
+        rowDataF.text(rowDataP.build());
+        properties.put("row_data", rowDataF.build());
+
+        Property.Builder cDateF = new Property.Builder();
+        DateProperty.Builder cDateP = new DateProperty.Builder();
+        cDateP.format("yyyy-MM-dd'T'HH:mm:ssSSS");
+        cDateP.index(true);
+        cDateF.date(cDateP.build());
+        properties.put("create_time", cDateF.build());
+
+        TypeMapping typeMapping = new TypeMapping.Builder().properties(properties).build();
+        return typeMapping;
+    }
+
     @Override
     public void createTriggerIdx(EsConnConfig connConfig) {
         try {
-            Map<String, Property> properties = new HashMap<>();
-
-            Property.Builder scnF = new Property.Builder();
-            LongNumberProperty scnP = new LongNumberProperty.Builder().build();
-            scnF.long_(scnP);
-            properties.put("scn", scnF.build());
-
-            Property.Builder idxNameF = new Property.Builder();
-            TextProperty.Builder idxNameP = new TextProperty.Builder();
-            idxNameP.index(true);
-            idxNameP.analyzer("standard");
-            idxNameF.text(idxNameP.build());
-            properties.put("idx_name", idxNameF.build());
-
-            //I:INSERT,U:UPDATE,D:DELETE
-            Property.Builder eventTypeF = new Property.Builder();
-            TextProperty.Builder eventTypeP = new TextProperty.Builder();
-            eventTypeP.index(true);
-            eventTypeP.analyzer("standard");
-            eventTypeF.text(eventTypeP.build());
-            properties.put("event_type", eventTypeF.build());
-
-            Property.Builder pkF = new Property.Builder();
-            TextProperty.Builder pkP = new TextProperty.Builder();
-            pkP.index(true);
-            pkP.analyzer("standard");
-            pkF.text(pkP.build());
-            properties.put("pk", pkF.build());
-
-            Property.Builder rowDataF = new Property.Builder();
-            TextProperty.Builder rowDataP = new TextProperty.Builder();
-            rowDataP.index(false);
-            rowDataF.text(rowDataP.build());
-            properties.put("row_data", rowDataF.build());
-
-            Property.Builder cDateF = new Property.Builder();
-            DateProperty.Builder cDateP = new DateProperty.Builder();
-            cDateP.format("yyyy-MM-dd'T'HH:mm:ssSSS");
-            cDateP.index(true);
-            cDateF.date(cDateP.build());
-            properties.put("create_time", cDateF.build());
-
-            TypeMapping typeMapping = new TypeMapping.Builder().properties(properties).build();
-
+            TypeMapping typeMapping = buildTriggerIdxMapping();
             createIdx(EsTriggerConstant.ES_TRIGGER_IDX, typeMapping, connConfig);
         } catch (Exception e) {
-            String errMsg = "Create index " + EsTriggerConstant.ES_TRIGGER_IDX + " failed,msg:" + ExceptionUtils.getRootCauseMessage(e);
+            String errMsg = "Create index " + EsTriggerConstant.ES_TRIGGER_IDX + " failed,msg:"
+                    + ExceptionUtils.getRootCauseMessage(e);
             log.error(errMsg, e);
             throw new RuntimeException(errMsg, e);
         }
@@ -98,7 +103,8 @@ public class CcEs8MetaServiceImpl implements CcMetaService {
                 settingMap.put(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, JsonData.of((Boolean) enable));
             }
 
-            PutIndicesSettingsRequest req = new PutIndicesSettingsRequest.Builder().index(indexes).settings(t -> t.otherSettings(settingMap)).build();
+            PutIndicesSettingsRequest req = new PutIndicesSettingsRequest.Builder().index(indexes)
+                    .settings(t -> t.otherSettings(settingMap)).build();
 
             ElasticsearchClient esClient = Es8ClientHelper.generateEsClient(connConfig);
             PutIndicesSettingsResponse res = esClient.indices().putSettings(req);
