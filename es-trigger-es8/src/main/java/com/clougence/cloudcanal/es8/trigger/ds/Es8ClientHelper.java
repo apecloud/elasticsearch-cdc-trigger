@@ -34,28 +34,34 @@ import co.elastic.clients.transport.rest_client.RestClientTransport;
  **/
 public class Es8ClientHelper {
 
-    private static final String  SEMICOLON      = ";";
+    private static final String SEMICOLON = ";";
 
-    private static final String  COLON          = ":";
+    private static final String COLON = ":";
 
-    private static final String  HTTPS_PROTOCOL = "https";
+    private static final String HTTPS_PROTOCOL = "https";
 
-    private static final Integer HTTPS_PORT     = 443;
+    private static final String HTTP_PROTOCOL = "http";
 
-    private static final Integer HTTP_PORT      = 80;
+    private static final Integer HTTPS_PORT = 443;
+
+    private static final Integer HTTP_PORT = 80;
 
     public static ElasticsearchClient generateEsClient(EsConnConfig esConfig) {
         List<HttpHost> hostList = genEsHttpHostList(esConfig.getHosts(), esConfig.isHttpsEnabled());
 
         RestClientBuilder builder = RestClient.builder(hostList.toArray(new HttpHost[] {}));
 
-        builder.setRequestConfigCallback(genRequestConfigCallback(esConfig.getConnTimeoutMs(), esConfig.getSoTimeoutMs(), esConfig.getConnRequestTimeoutMs()));
-        builder.setHttpClientConfigCallback(genHttpClientConfigCallBack(esConfig.getUserName(), esConfig.getPassword(), esConfig.isCaCertificated(), esConfig
-            .getSecurityFileUrl(), esConfig.getMaxConnCount(), esConfig.getMaxConnPerRoute(), esConfig.getKeepAliveSec()));
+        builder.setRequestConfigCallback(genRequestConfigCallback(esConfig.getConnTimeoutMs(),
+                esConfig.getSoTimeoutMs(), esConfig.getConnRequestTimeoutMs()));
+        builder.setHttpClientConfigCallback(genHttpClientConfigCallBack(esConfig.getUserName(), esConfig.getPassword(),
+                esConfig.isCaCertificated(), esConfig
+                        .getSecurityFileUrl(),
+                esConfig.getMaxConnCount(), esConfig.getMaxConnPerRoute(), esConfig.getKeepAliveSec()));
 
         ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, false);
 
-        ElasticsearchTransport transport = new RestClientTransport(builder.build(), new JacksonJsonpMapper(mapper), null, NoopInstrumentation.INSTANCE);
+        ElasticsearchTransport transport = new RestClientTransport(builder.build(), new JacksonJsonpMapper(mapper),
+                null, NoopInstrumentation.INSTANCE);
         return new ElasticsearchClient(transport);
     }
 
@@ -72,14 +78,15 @@ public class Es8ClientHelper {
             if (isHttpsEnabled) {
                 httpHosts.add(new HttpHost(ip, port == null ? HTTPS_PORT : port, HTTPS_PROTOCOL));
             } else {
-                httpHosts.add(new HttpHost(ip, port == null ? HTTP_PORT : port));
+                httpHosts.add(new HttpHost(ip, port == null ? HTTP_PORT : port, HTTP_PROTOCOL));
             }
         }
         return httpHosts;
     }
 
-    private static RestClientBuilder.HttpClientConfigCallback genHttpClientConfigCallBack(String userName, String passwd, boolean caCertificated, String securityFileUrl,
-                                                                                          Integer maxConnCount, Integer maxConnPerRoute, Integer keepAliveSec) {
+    private static RestClientBuilder.HttpClientConfigCallback genHttpClientConfigCallBack(String userName,
+            String passwd, boolean caCertificated, String securityFileUrl,
+            Integer maxConnCount, Integer maxConnPerRoute, Integer keepAliveSec) {
         CredentialsProvider cp = null;
         if (StringUtils.isNotEmpty(userName)) {
             cp = new BasicCredentialsProvider();
@@ -113,8 +120,10 @@ public class Es8ClientHelper {
         };
     }
 
-    private static RestClientBuilder.RequestConfigCallback genRequestConfigCallback(int connTimeoutMs, int soTimeoutMs, int reqTimeoutMs) {
-        return builder -> builder.setConnectTimeout(connTimeoutMs).setSocketTimeout(soTimeoutMs).setConnectionRequestTimeout(reqTimeoutMs);
+    private static RestClientBuilder.RequestConfigCallback genRequestConfigCallback(int connTimeoutMs, int soTimeoutMs,
+            int reqTimeoutMs) {
+        return builder -> builder.setConnectTimeout(connTimeoutMs).setSocketTimeout(soTimeoutMs)
+                .setConnectionRequestTimeout(reqTimeoutMs);
     }
 
     protected static SSLContext initForEs(String securityFileUrl) {
@@ -137,7 +146,8 @@ public class Es8ClientHelper {
         try {
             return func.apply(crtFile);
         } catch (Exception e) {
-            String errorMsg = "load CA certificate file Fail! err:" + ExceptionUtils.getRootCauseMessage(e) + ",path:" + crtFile.getAbsolutePath();
+            String errorMsg = "load CA certificate file Fail! err:" + ExceptionUtils.getRootCauseMessage(e) + ",path:"
+                    + crtFile.getAbsolutePath();
             throw new RuntimeException(errorMsg);
         }
     }

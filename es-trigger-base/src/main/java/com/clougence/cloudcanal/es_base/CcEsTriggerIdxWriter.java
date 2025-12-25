@@ -9,5 +9,4 @@ public interface CcEsTriggerIdxWriter extends ComponentLifeCycle {
 
     void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson) throws IOException;
 
-    void initTriggerIdx();
 }

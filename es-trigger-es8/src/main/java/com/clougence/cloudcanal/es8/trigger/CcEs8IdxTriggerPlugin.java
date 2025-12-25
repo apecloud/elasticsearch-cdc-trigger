@@ -94,7 +94,6 @@ public class CcEs8IdxTriggerPlugin extends Plugin {
     protected synchronized void initIdxWriter() {
         if (triggerIdxWriter == null) {
             triggerIdxWriter = new CcEs8TriggerIdxWriterImpl();
-            triggerIdxWriter.initTriggerIdx();
             triggerIdxWriter.start();
         }
     }

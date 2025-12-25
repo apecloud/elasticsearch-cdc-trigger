@@ -40,6 +40,8 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssSSS");
 
+    private static final AtomicBoolean triggerIdxInitialized = new AtomicBoolean(false);
+
     @Override
     public void start() {
         if (inited.compareAndSet(false, true)) {
@@ -53,6 +55,8 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
     protected abstract String fetchScnCurrVal();
 
     protected abstract boolean isClientInited();
+
+    protected abstract boolean initTriggerIdx();
 
     protected abstract void updateIncreIdToNextStep(long nextStart);
 
@@ -100,6 +104,11 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
             return;
         }
 
+        if (!triggerIdxInitialized.get() && initTriggerIdx()) {
+            log.info("Trigger index initialized successfully.");
+            triggerIdxInitialized.compareAndSet(false, true);
+        }
+
         Map<String, Object> doc = new HashMap<>();
         long gid = nextId();
         doc.put("scn", gid);
@@ -114,11 +123,6 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
         doc.put("create_time", LocalDateTime.now().format(formatter));
 
         insertInner(doc, idxName, id);
-    }
-
-    @Override
-    public void initTriggerIdx() {
-        // Default empty implementation, subclasses can override if needed
     }
 
     private synchronized long nextId() {

@@ -39,12 +39,11 @@ public class CcEs8TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
         return Es8ClientConn.instance.getEsClient() != null;
     }
 
-    @Override
-    public void initTriggerIdx() {
+    protected boolean initTriggerIdx() {
         try {
             if (!isClientInited()) {
-                log.debug("ES client is not initialized, skip init trigger index.");
-                return;
+                log.warn("ES client is not initialized, skip init trigger index.");
+                return false;
             }
 
             ElasticsearchClient esClient = Es8ClientConn.instance.getEsClient();
@@ -54,7 +53,6 @@ public class CcEs8TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
             boolean indexExists = esClient.indices().exists(existsRequest).value();
 
             if (!indexExists) {
-                log.debug("Trigger index " + EsTriggerConstant.ES_TRIGGER_IDX + " does not exist, creating it...");
                 try {
                     CcEs8MetaServiceImpl metaService = new CcEs8MetaServiceImpl();
                     TypeMapping typeMapping = metaService.buildTriggerIdxMapping();
@@ -67,7 +65,7 @@ public class CcEs8TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
                                 "Create trigger index " + EsTriggerConstant.ES_TRIGGER_IDX
                                         + " failed, acknowledged is false.");
                     }
-                    log.debug("Trigger index " + EsTriggerConstant.ES_TRIGGER_IDX + " created successfully.");
+                    log.info("Trigger index " + EsTriggerConstant.ES_TRIGGER_IDX + " created successfully.");
                 } catch (ElasticsearchException e) {
                     if (e.getMessage() != null && e.getMessage().contains("resource_already_exists_exception")) {
                         log.info("Trigger index " + EsTriggerConstant.ES_TRIGGER_IDX
@@ -77,11 +75,13 @@ public class CcEs8TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
                     }
                 }
             } else {
-                log.debug("Trigger index " + EsTriggerConstant.ES_TRIGGER_IDX + " already exists, skip creation.");
+                log.info("Trigger index " + EsTriggerConstant.ES_TRIGGER_IDX + " already exists, skip creation.");
             }
         } catch (Exception e) {
             log.error("Init trigger index failed, msg: " + ExceptionUtils.getRootCauseMessage(e), e);
+            return false;
         }
+        return true;
     }
 
     protected String fetchScnCurrVal() {
