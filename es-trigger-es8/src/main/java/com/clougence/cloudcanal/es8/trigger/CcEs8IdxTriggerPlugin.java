@@ -63,7 +63,7 @@ public class CcEs8IdxTriggerPlugin extends Plugin {
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (indexModule.getIndex().getName().equals(EsTriggerConstant.ES_TRIGGER_IDX)) {
-            log.info("Not subscribe " + EsTriggerConstant.ES_TRIGGER_IDX);
+            log.debug("Not subscribe " + EsTriggerConstant.ES_TRIGGER_IDX);
             return;
         }
 

@@ -33,21 +33,26 @@ import com.clougence.cloudcanal.es_base.EsTriggerConstant;
  */
 public class CcEs7IdxTriggerPlugin extends Plugin {
 
-    private static final Logger         log                = LoggerFactory.getLogger(CcEs7IdxTriggerPlugin.class);
+    private static final Logger log = LoggerFactory.getLogger(CcEs7IdxTriggerPlugin.class);
 
-    private final List<Setting<?>>      settings           = new ArrayList<>();
+    private final List<Setting<?>> settings = new ArrayList<>();
 
-    private final Setting<Boolean>      cdcEnableSetting   = Setting
-        .boolSetting(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, false, Setting.Property.IndexScope, Setting.Property.Dynamic);
-    public static final Setting<String> triggerIdxMaxScn   = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_MAX_SCN_KEY, Setting.Property.IndexScope, Setting.Property.Dynamic);
+    private final Setting<Boolean> cdcEnableSetting = Setting
+            .boolSetting(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, false, Setting.Property.IndexScope,
+                    Setting.Property.Dynamic);
+    public static final Setting<String> triggerIdxMaxScn = Setting.simpleString(
+            EsTriggerConstant.TRIGGER_IDX_MAX_SCN_KEY, Setting.Property.IndexScope, Setting.Property.Dynamic);
 
-    public static final Setting<String> triggerIdxHost     = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_HOST_KEY, Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<String> triggerIdxUser     = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_USER_KEY, Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<String> triggerIdxPassword = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_PASSWD_KEY, Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<String> triggerIdxHost = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_HOST_KEY,
+            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<String> triggerIdxUser = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_USER_KEY,
+            Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<String> triggerIdxPassword = Setting.simpleString(
+            EsTriggerConstant.TRIGGER_IDX_PASSWD_KEY, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    private CcEsTriggerIdxWriter        triggerIdxWriter;
+    private CcEsTriggerIdxWriter triggerIdxWriter;
 
-    public CcEs7IdxTriggerPlugin(){
+    public CcEs7IdxTriggerPlugin() {
         settings.add(cdcEnableSetting);
         settings.add(triggerIdxHost);
         settings.add(triggerIdxUser);
@@ -56,12 +61,14 @@ public class CcEs7IdxTriggerPlugin extends Plugin {
     }
 
     @Override
-    public List<Setting<?>> getSettings() { return settings; }
+    public List<Setting<?>> getSettings() {
+        return settings;
+    }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (indexModule.getIndex().getName().equals(EsTriggerConstant.ES_TRIGGER_IDX)) {
-            log.info("Not subscribe " + EsTriggerConstant.ES_TRIGGER_IDX);
+            log.debug("Not subscribe " + EsTriggerConstant.ES_TRIGGER_IDX);
             return;
         }
 
@@ -75,10 +82,12 @@ public class CcEs7IdxTriggerPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
-                                               ScriptService scriptService, NamedXContentRegistry xContentRegistry, Environment environment, NodeEnvironment nodeEnvironment,
-                                               NamedWriteableRegistry namedWriteableRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService, NamedXContentRegistry xContentRegistry, Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier) {
         log.info(this.getClass().getSimpleName() + " createComponents");
         try {
             Es7ClientConn.instance.addHostSettingConsumer(clusterService.getClusterSettings());
@@ -88,7 +97,9 @@ public class CcEs7IdxTriggerPlugin extends Plugin {
             log.error("Create components FAILED,but ignore.msg:" + ExceptionUtils.getRootCauseMessage(e), e);
         }
 
-        return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, indexNameExpressionResolver, repositoriesServiceSupplier);
+        return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
+                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, indexNameExpressionResolver,
+                repositoriesServiceSupplier);
     }
 
     protected synchronized void initIdxWriter() {
