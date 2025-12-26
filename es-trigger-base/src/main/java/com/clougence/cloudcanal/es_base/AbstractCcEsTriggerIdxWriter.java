@@ -20,25 +20,27 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTriggerIdxWriter {
 
-    private static final Logger            log                = LoggerFactory.getLogger(AbstractCcEsTriggerIdxWriter.class);
+    private static final Logger log = LoggerFactory.getLogger(AbstractCcEsTriggerIdxWriter.class);
 
-    private static final AtomicBoolean     inited             = new AtomicBoolean(false);
+    private static final AtomicBoolean inited = new AtomicBoolean(false);
 
-    private static final AtomicBoolean     triggerIdxIdInited = new AtomicBoolean(false);
+    private static final AtomicBoolean triggerIdxIdInited = new AtomicBoolean(false);
 
-    private final AtomicLong               incrementId        = new AtomicLong(0);
+    private final AtomicLong incrementId = new AtomicLong(0);
 
-    private static final int               scnStep            = 100000;
+    private static final int scnStep = 100000;
 
-    private long                           currentStepMaxVal  = 0;
+    private long currentStepMaxVal = 0;
 
-    private ExecutorService                executor;
+    private ExecutorService executor;
 
-    protected static final int             cacheSize          = 65535;
+    protected static final int cacheSize = 65535;
 
-    protected static final int             batchSize          = 1024;
+    protected static final int batchSize = 1024;
 
-    private static final DateTimeFormatter formatter          = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssSSS");
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssSSS");
+
+    private static final AtomicBoolean triggerIdxInitialized = new AtomicBoolean(false);
 
     @Override
     public void start() {
@@ -53,6 +55,8 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
     protected abstract String fetchScnCurrVal();
 
     protected abstract boolean isClientInited();
+
+    protected abstract boolean initTriggerIdx();
 
     protected abstract void updateIncreIdToNextStep(long nextStart);
 
@@ -83,7 +87,7 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
         } catch (Exception e) {
             String msg = "Init trigger index settings failed,init later.msg:" + ExceptionUtils.getRootCauseMessage(e);
             log.error(msg, e);
-            //            throw new RuntimeException(msg, e);
+            // throw new RuntimeException(msg, e);
         }
     }
 
@@ -93,10 +97,16 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
     }
 
     @Override
-    public void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson) throws IOException {
+    public void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson)
+            throws IOException {
         if (!isClientInited()) {
             log.warn("Es client is null,skip write data.");
             return;
+        }
+
+        if (!triggerIdxInitialized.get() && initTriggerIdx()) {
+            log.info("Trigger index initialized successfully.");
+            triggerIdxInitialized.compareAndSet(false, true);
         }
 
         Map<String, Object> doc = new HashMap<>();
@@ -143,7 +153,8 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
                 log.info(this.getClass().getSimpleName() + " stop successfully.");
             } catch (Exception e) {
-                log.warn(this.getClass().getSimpleName() + " stop failed,but ignore.msg:" + ExceptionUtils.getRootCauseMessage(e));
+                log.warn(this.getClass().getSimpleName() + " stop failed,but ignore.msg:"
+                        + ExceptionUtils.getRootCauseMessage(e));
             }
         }
     }

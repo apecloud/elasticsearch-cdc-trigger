@@ -33,16 +33,24 @@ import com.clougence.cloudcanal.es_base.EsTriggerConstant;
  */
 public class CcEs7TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
 
-    private static final Logger           log   = LoggerFactory.getLogger(CcEs7TriggerIdxWriterImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(CcEs7TriggerIdxWriterImpl.class);
 
     protected BlockingQueue<IndexRequest> cache = new ArrayBlockingQueue<>(cacheSize);
 
-    protected boolean isClientInited() { return Es7ClientConn.instance.getEsClient() != null; }
+    protected boolean isClientInited() {
+        return Es7ClientConn.instance.getEsClient() != null;
+    }
+
+    protected boolean initTriggerIdx() {
+        // TODO: implement init trigger index for ES7
+        return true;
+    }
 
     protected String fetchScnCurrVal() {
         try {
             GetSettingsRequest req = new GetSettingsRequest().indices(EsTriggerConstant.ES_TRIGGER_IDX);
-            GetSettingsResponse res = Es7ClientConn.instance.getEsClient().indices().getSettings(req, RequestOptions.DEFAULT);
+            GetSettingsResponse res = Es7ClientConn.instance.getEsClient().indices().getSettings(req,
+                    RequestOptions.DEFAULT);
             return res.getSetting(EsTriggerConstant.ES_TRIGGER_IDX, TRIGGER_IDX_MAX_SCN_KEY);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -52,9 +60,11 @@ public class CcEs7TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
     protected void updateIncreIdToNextStep(long nextStart) {
         try {
             Settings.Builder sb = Settings.builder().put(TRIGGER_IDX_MAX_SCN_KEY, nextStart);
-            UpdateSettingsRequest req = new UpdateSettingsRequest().indices(EsTriggerConstant.ES_TRIGGER_IDX).settings(sb);
+            UpdateSettingsRequest req = new UpdateSettingsRequest().indices(EsTriggerConstant.ES_TRIGGER_IDX)
+                    .settings(sb);
 
-            AcknowledgedResponse res = Es7ClientConn.instance.getEsClient().indices().putSettings(req, RequestOptions.DEFAULT);
+            AcknowledgedResponse res = Es7ClientConn.instance.getEsClient().indices().putSettings(req,
+                    RequestOptions.DEFAULT);
             if (!res.isAcknowledged()) {
                 throw new RuntimeException("Update trigger index settings failed, acknowledged is false.");
             }
@@ -74,7 +84,8 @@ public class CcEs7TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
         try {
             boolean offered = this.cache.offer(ir, 2, TimeUnit.SECONDS);
             if (!offered) {
-                log.warn("Offer to write cache timeout cause no space left,just skip and record here,idx_name:" + srcIdx + ",_id:" + srcId);
+                log.warn("Offer to write cache timeout cause no space left,just skip and record here,idx_name:" + srcIdx
+                        + ",_id:" + srcId);
             }
         } catch (InterruptedException e) {
             log.warn("Offer to cache interruppted,but skip,idx_name:" + srcIdx + ",_id:" + srcId);
@@ -87,7 +98,7 @@ public class CcEs7TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
             while (!Thread.currentThread().isInterrupted()) {
                 List<IndexRequest> irs = new ArrayList<>();
                 int real = cache.drainTo(irs, batchSize);
-                //                log.info("Drain " + real + " documents from cache");
+                // log.info("Drain " + real + " documents from cache");
                 if (real > 0) {
                     BulkRequest reqs = new BulkRequest();
                     for (IndexRequest ir : irs) {
@@ -103,7 +114,8 @@ public class CcEs7TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
 
                     for (BulkItemResponse response : bulkResponse) {
                         if (response.isFailed()) {
-                            String errMsg = "bulk put FAILED!msg:" + response.getFailureMessage() + ",action id: " + response.getId();
+                            String errMsg = "bulk put FAILED!msg:" + response.getFailureMessage() + ",action id: "
+                                    + response.getId();
                             log.error(errMsg);
                             throw new RuntimeException(errMsg);
                         }
@@ -112,7 +124,7 @@ public class CcEs7TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
                     log.info("Bulk documents success,real:" + real);
                 }
 
-                //no need to sleep
+                // no need to sleep
                 if (real < batchSize) {
                     Thread.sleep(1000);
                 }
