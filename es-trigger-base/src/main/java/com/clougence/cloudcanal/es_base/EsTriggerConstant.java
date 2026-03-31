@@ -16,6 +16,7 @@ public class EsTriggerConstant {
     public static final String NODE_TRIGGER_IDXS = NODE_CONF_PREFIX + ".cdc_enable_idxs";
 
     public static final String ES_TRIGGER_IDX = "ape_es_trigger_idx";
+    public static final String ES6_DOC_TYPE = "_doc";
 
     public static final String IDX_ENABLE_CDC_CONF_KEY = "index.cdc_enabled";
 

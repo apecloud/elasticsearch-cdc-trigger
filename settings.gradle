@@ -9,5 +9,7 @@
 
 rootProject.name = 'cloudcanal-es-trigger'
 include('es-trigger-base')
+include('es-trigger-es6')
 include('es-trigger-es7')
 include('es-trigger-es8')
+include('es-sink-es6')

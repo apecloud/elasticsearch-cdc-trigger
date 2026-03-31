@@ -38,6 +38,8 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
     protected static final int batchSize = 1024;
 
+    protected static final long errorBackoffMs = 1000L;
+
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssSSS");
 
     private static final AtomicBoolean triggerIdxInitialized = new AtomicBoolean(false);
@@ -60,7 +62,8 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
     protected abstract void updateIncreIdToNextStep(long nextStart);
 
-    protected abstract void insertInner(Map<String, Object> doc, String srcIdx, String srcId);
+    protected abstract void insertInner(Map<String, Object> doc, String srcIdx, String srcId,
+            TriggerEventType dataOp);
 
     private void initTriggerIdxId() {
         try {
@@ -97,32 +100,41 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
     }
 
     @Override
-    public void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson)
+    public void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson, String docType)
             throws IOException {
-        if (!isClientInited()) {
-            log.warn("Es client is null,skip write data.");
-            return;
+        try {
+            if (!isClientInited()) {
+                log.warn("Es client is null,skip write data.");
+                return;
+            }
+
+            if (!triggerIdxInitialized.get() && initTriggerIdx()) {
+                log.info("Trigger index initialized successfully.");
+                triggerIdxInitialized.compareAndSet(false, true);
+            }
+
+            Map<String, Object> doc = new HashMap<>();
+            long gid = nextId();
+            doc.put("scn", gid);
+            doc.put("idx_name", idxName);
+            doc.put("event_type", dataOp.getCode());
+            doc.put("pk", id);
+
+            if (docJson != null) {
+                doc.put("row_data", docJson);
+            }
+
+            if (docType != null) {
+                doc.put("doc_type", docType);
+            }
+
+            doc.put("create_time", LocalDateTime.now().format(formatter));
+
+            insertInner(doc, idxName, id, dataOp);
+        } catch (Exception e) {
+            log.warn("Insert trigger event failed but ignore, idx_name:{}, event_type:{}, _id:{}, msg:{}", idxName,
+                    dataOp, id, ExceptionUtils.getRootCauseMessage(e));
         }
-
-        if (!triggerIdxInitialized.get() && initTriggerIdx()) {
-            log.info("Trigger index initialized successfully.");
-            triggerIdxInitialized.compareAndSet(false, true);
-        }
-
-        Map<String, Object> doc = new HashMap<>();
-        long gid = nextId();
-        doc.put("scn", gid);
-        doc.put("idx_name", idxName);
-        doc.put("event_type", dataOp.getCode());
-        doc.put("pk", id);
-
-        if (docJson != null) {
-            doc.put("row_data", docJson);
-        }
-
-        doc.put("create_time", LocalDateTime.now().format(formatter));
-
-        insertInner(doc, idxName, id);
     }
 
     private synchronized long nextId() {

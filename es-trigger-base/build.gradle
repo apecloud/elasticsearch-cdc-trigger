@@ -11,4 +11,6 @@ plugins {
     id 'cc-es-trigger.java-conventions'
 }
 
+java.sourceCompatibility = JavaVersion.VERSION_1_8
+
 description = 'es-trigger-base'

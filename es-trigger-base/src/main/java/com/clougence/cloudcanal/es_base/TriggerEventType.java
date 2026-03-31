@@ -13,7 +13,27 @@ public enum TriggerEventType {
     /**
      * Delete DML type.
      */
-    DELETE("D");
+    DELETE("D"),
+    /**
+     * Create index DDL type.
+     */
+    CREATE_INDEX("CI"),
+    /**
+     * Delete index DDL type.
+     */
+    DELETE_INDEX("DI"),
+    /**
+     * Update mapping DDL type.
+     */
+    UPDATE_MAPPING("UM"),
+    /**
+     * Update settings DDL type.
+     */
+    UPDATE_SETTINGS("US"),
+    /**
+     * Update aliases DDL type.
+     */
+    UPDATE_ALIASES("UA");
 
     private final String code;
 
@@ -22,6 +42,11 @@ public enum TriggerEventType {
     }
 
     public boolean isDml() { return this == INSERT || this == DELETE || this == UPDATE; }
+
+    public boolean isDdl() {
+        return this == CREATE_INDEX || this == DELETE_INDEX || this == UPDATE_MAPPING || this == UPDATE_SETTINGS
+                || this == UPDATE_ALIASES;
+    }
 
     public String getCode() { return this.code; }
 
