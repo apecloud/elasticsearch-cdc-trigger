@@ -3,7 +3,6 @@ package com.clougence.cloudcanal.es6.sink;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.elasticsearch.client.Client;
@@ -29,7 +28,7 @@ public class CcEs6SinkPlugin extends Plugin {
     private static final Logger log = LoggerFactory.getLogger(CcEs6SinkPlugin.class);
 
     public static final Setting<Boolean> triggerEnabled = Setting
-            .boolSetting(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, false, Property.NodeScope);
+            .boolSetting(CcEs6SinkConstant.SOURCE_TRIGGER_ENABLED_KEY, false, Property.NodeScope, Property.Dynamic);
     public static final Setting<String> sourceTriggerIdxHost = Setting.simpleString(
             CcEs6SinkConstant.SOURCE_TRIGGER_IDX_HOST_KEY, Property.NodeScope);
     public static final Setting<String> sourceTriggerIdxUser = Setting.simpleString(
@@ -79,13 +78,13 @@ public class CcEs6SinkPlugin extends Plugin {
         try {
             Es6SourceClientConn.instance.initFromSettings(clusterService.getClusterSettings());
             CcEs6SinkConfig config = buildConfig(clusterService);
-            if (clusterService.getClusterSettings().get(triggerEnabled)) {
-                log.info("{} createComponents", getClass().getSimpleName());
-                sinkCoordinator = new CcEs6SinkCoordinator(clusterService, threadPool, client, config);
-                clusterService.addLocalNodeMasterListener(sinkCoordinator);
-                if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-                    sinkCoordinator.onMaster();
-                }
+            log.info("{} createComponents", getClass().getSimpleName());
+            sinkCoordinator = new CcEs6SinkCoordinator(clusterService, threadPool, client, config,
+                    clusterService.getClusterSettings().get(triggerEnabled));
+            clusterService.addLocalNodeMasterListener(sinkCoordinator);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(triggerEnabled, sinkCoordinator::setEnabled);
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                sinkCoordinator.onMaster();
             }
         } catch (Exception e) {
             log.error("Create sink components failed but ignore.msg:{}", ExceptionUtils.getRootCauseMessage(e), e);

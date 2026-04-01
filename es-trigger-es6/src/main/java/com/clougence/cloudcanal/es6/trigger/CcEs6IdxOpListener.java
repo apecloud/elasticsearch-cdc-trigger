@@ -3,11 +3,13 @@ package com.clougence.cloudcanal.es6.trigger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import org.apache.commons.lang3.StringUtils;
 import com.clougence.cloudcanal.es_base.CcEsTriggerIdxWriter;
 import com.clougence.cloudcanal.es_base.ComponentLifeCycle;
 import com.clougence.cloudcanal.es_base.EsTriggerConstant;
 import com.clougence.cloudcanal.es_base.TriggerEventType;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.IndexModule;
@@ -35,12 +37,18 @@ public class CcEs6IdxOpListener implements IndexingOperationListener, ComponentL
 
     private final CcEs6IndexLifecycleRegistry lifecycleRegistry;
 
+    private final ClusterSettings clusterSettings;
+
+    private volatile String cachedNodeTriggerIdxs;
+
     public CcEs6IdxOpListener(IndexModule indexModule, CcEsTriggerIdxWriter ccEsTriggerIdxWriter,
-            ClusterService clusterService, CcEs6IndexLifecycleRegistry lifecycleRegistry){
+            ClusterService clusterService, CcEs6IndexLifecycleRegistry lifecycleRegistry,
+            ClusterSettings clusterSettings){
         this.indexModule = indexModule;
         this.ccEsTriggerIdxWriter = ccEsTriggerIdxWriter;
         this.clusterService = clusterService;
         this.lifecycleRegistry = lifecycleRegistry;
+        this.clusterSettings = clusterSettings;
     }
 
     @Override
@@ -51,6 +59,20 @@ public class CcEs6IdxOpListener implements IndexingOperationListener, ComponentL
     public void start() {
         if (inited.compareAndSet(false, true)) {
             log.info("Component " + this.getClass().getSimpleName() + " start successfully.");
+        }
+
+        try {
+            if (clusterSettings != null) {
+                this.cachedNodeTriggerIdxs = clusterSettings.get(CcEs6IdxTriggerPlugin.nodeTriggerIdxs);
+                clusterSettings.addSettingsUpdateConsumer(CcEs6IdxTriggerPlugin.nodeTriggerIdxs, newValue -> {
+                    this.cachedNodeTriggerIdxs = newValue;
+                    log.info("nodeTriggerIdxs updated for index [{}]: {}", indexModule.getIndex().getName(),
+                            newValue);
+                });
+            }
+        } catch (Exception e) {
+            log.error("Add settings update consumer failed, but ignore. msg:{}",
+                    ExceptionUtils.getRootCauseMessage(e), e);
         }
     }
 
@@ -66,7 +88,7 @@ public class CcEs6IdxOpListener implements IndexingOperationListener, ComponentL
         try {
             //            log.info("receive DELETE event.");
             if (delete.origin() != Engine.Operation.Origin.PRIMARY // not primary shard
-                || !indexModule.getSettings().getAsBoolean(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, false) // not enable cdc
+                || !isIdxCdcEnabled(shardId.getIndex().getName()) // not enable cdc
                 || result.getFailure() != null // failed operation
                 || !result.isFound()) { // not found
                 return;
@@ -91,7 +113,7 @@ public class CcEs6IdxOpListener implements IndexingOperationListener, ComponentL
         try {
             //            log.info("receive INDEX event.");
             if (index.origin() != Engine.Operation.Origin.PRIMARY // not primary shard
-                || !indexModule.getSettings().getAsBoolean(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, false) // cdc not enabled
+                || !isIdxCdcEnabled(shardId.getIndex().getName()) // cdc not enabled
                 || result.getFailure() != null // has failure
                 || result.getResultType() != Engine.Result.Type.SUCCESS) { // not success
                 return;
@@ -133,5 +155,39 @@ public class CcEs6IdxOpListener implements IndexingOperationListener, ComponentL
 
         IndexMetaData indexMetaData = clusterService.state().metaData().index(indexName);
         lifecycleRegistry.ensureCreateRecorded(indexName, indexMetaData, ccEsTriggerIdxWriter);
+    }
+
+    private boolean isIdxCdcEnabled(String indexName) {
+        Boolean indexCdcEnabled = indexModule.getSettings().getAsBoolean(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY,
+                null);
+        if (indexCdcEnabled != null) {
+            return indexCdcEnabled;
+        }
+
+        String nodeTriggerIdxs = this.cachedNodeTriggerIdxs;
+        if (StringUtils.isBlank(nodeTriggerIdxs) || StringUtils.isBlank(indexName)) {
+            return false;
+        }
+
+        String[] cdcIdxs = nodeTriggerIdxs.split(",");
+        for (String cdcIdx : cdcIdxs) {
+            String trimmedIdx = cdcIdx.trim();
+            if (StringUtils.isBlank(trimmedIdx)) {
+                continue;
+            }
+            if ("*".equals(trimmedIdx)) {
+                return true;
+            }
+            try {
+                if (indexName.matches(trimmedIdx)) {
+                    return true;
+                }
+            } catch (Exception e) {
+                if (indexName.equals(trimmedIdx)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

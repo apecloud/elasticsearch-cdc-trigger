@@ -3,6 +3,7 @@ package com.clougence.cloudcanal.es6.trigger.writer;
 import static com.clougence.cloudcanal.es_base.EsTriggerConstant.TRIGGER_IDX_MAX_SCN_KEY;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import com.clougence.cloudcanal.es6.trigger.ds.Es6ClientConn;
 import com.clougence.cloudcanal.es_base.AbstractCcEsTriggerIdxWriter;
 import com.clougence.cloudcanal.es_base.EsTriggerConstant;
+import com.clougence.cloudcanal.es_base.TriggerWriteEvent;
 import com.clougence.cloudcanal.es_base.TriggerEventType;
 
 /**
@@ -38,7 +40,7 @@ public class CcEs6TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
 
     private static final Logger log = LoggerFactory.getLogger(CcEs6TriggerIdxWriterImpl.class);
 
-    protected BlockingQueue<IndexRequest> cache = new ArrayBlockingQueue<>(cacheSize);
+    protected BlockingQueue<TriggerWriteEvent> cache = new ArrayBlockingQueue<>(cacheSize);
 
     private final AtomicLong droppedEventCount = new AtomicLong();
 
@@ -58,7 +60,7 @@ public class CcEs6TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
             }
         } catch (Exception e) {
             if (!ExceptionUtils.getRootCauseMessage(e).contains("404")) {
-                log.error("Check trigger index exists failed,msg:" + ExceptionUtils.getRootCauseMessage(e), e);
+                log.warn("Check trigger index exists failed,msg:" + ExceptionUtils.getRootCauseMessage(e));
                 return false;
             }
         }
@@ -109,23 +111,21 @@ public class CcEs6TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
     }
 
     @Override
-    protected void insertInner(Map<String, Object> doc, String srcIdx, String srcId, TriggerEventType dataOp) {
-        IndexRequest ir = new IndexRequest().index(EsTriggerConstant.ES_TRIGGER_IDX)
-                .type(EsTriggerConstant.ES6_DOC_TYPE).source(doc);
-
+    protected void insertInner(TriggerWriteEvent event) {
         try {
-            boolean offered = this.cache.offer(ir, 2, TimeUnit.SECONDS);
+            boolean offered = this.cache.offer(event, 2, TimeUnit.SECONDS);
             if (!offered) {
                 long dropped = droppedEventCount.incrementAndGet();
                 lastDroppedAt.set(System.currentTimeMillis());
-                log.warn("Offer to write cache timeout cause no space left,just skip and record here,idx_name:" + srcIdx
-                        + ",_id:" + srcId + ",event_type:" + dataOp + ",dropped_total:" + dropped);
+                log.warn("Offer to write cache timeout cause no space left,just skip and record here,idx_name:{}"
+                                + ",_id:{},event_type:{},dropped_total:{}",
+                        event.getIdxName(), event.getId(), event.getEventType(), dropped);
             }
         } catch (InterruptedException e) {
             long dropped = droppedEventCount.incrementAndGet();
             lastDroppedAt.set(System.currentTimeMillis());
-            log.warn("Offer to cache interruppted,but skip,idx_name:" + srcIdx + ",_id:" + srcId + ",event_type:"
-                    + dataOp + ",dropped_total:" + dropped);
+            log.warn("Offer to cache interruppted,but skip,idx_name:{},_id:{},event_type:{},dropped_total:{}",
+                    event.getIdxName(), event.getId(), event.getEventType(), dropped);
             Thread.currentThread().interrupt();
         }
     }
@@ -134,13 +134,26 @@ public class CcEs6TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                List<IndexRequest> irs = new ArrayList<>();
-                int real = cache.drainTo(irs, batchSize);
+                if (cache.isEmpty()) {
+                    Thread.sleep(1000);
+                    continue;
+                }
+
+                if (!isWriterStateReady()) {
+                    initializeWriterState();
+                    if (!isWriterStateReady()) {
+                        Thread.sleep(errorBackoffMs);
+                        continue;
+                    }
+                }
+
+                List<TriggerWriteEvent> events = new ArrayList<>();
+                int real = cache.drainTo(events, batchSize);
                 // log.info("Drain " + real + " documents from cache");
                 if (real > 0) {
                     BulkRequest reqs = new BulkRequest();
-                    for (IndexRequest ir : irs) {
-                        reqs.add(ir);
+                    for (TriggerWriteEvent event : events) {
+                        reqs.add(toIndexRequest(event));
                     }
 
                     WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.NONE;
@@ -161,11 +174,6 @@ public class CcEs6TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
 
                     log.info("Bulk documents success,real:" + real);
                 }
-
-                // no need to sleep
-                if (real < batchSize) {
-                    Thread.sleep(1000);
-                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.info("Trigger idx writer interrupted, stop consume loop.");
@@ -179,6 +187,23 @@ public class CcEs6TriggerIdxWriterImpl extends AbstractCcEsTriggerIdxWriter {
                 }
             }
         }
+    }
+
+    private IndexRequest toIndexRequest(TriggerWriteEvent event) {
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("scn", nextId());
+        doc.put("idx_name", event.getIdxName());
+        doc.put("event_type", event.getEventType().getCode());
+        doc.put("pk", event.getId());
+        if (event.getDocJson() != null) {
+            doc.put("row_data", event.getDocJson());
+        }
+        if (event.getDocType() != null) {
+            doc.put("doc_type", event.getDocType());
+        }
+        doc.put("create_time", event.getCreateTime());
+        return new IndexRequest().index(EsTriggerConstant.ES_TRIGGER_IDX)
+                .type(EsTriggerConstant.ES6_DOC_TYPE).source(doc);
     }
 
     private String buildCreateIndexBody() {

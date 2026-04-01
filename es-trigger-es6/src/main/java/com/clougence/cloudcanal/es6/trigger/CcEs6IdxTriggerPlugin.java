@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -34,18 +35,18 @@ public class CcEs6IdxTriggerPlugin extends Plugin {
 
     private final List<Setting<?>> settings = new ArrayList<>();
 
-    private final Setting<Boolean> cdcEnableSetting = Setting
-            .boolSetting(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, false, Setting.Property.IndexScope,
-                    Setting.Property.Dynamic);
-    public static final Setting<String> triggerIdxMaxScn = Setting.simpleString(
-            EsTriggerConstant.TRIGGER_IDX_MAX_SCN_KEY, Setting.Property.IndexScope, Setting.Property.Dynamic);
-
+    public static final Setting<String> nodeTriggerIdxs = Setting.simpleString(EsTriggerConstant.NODE_TRIGGER_IDXS, Setting.Property.NodeScope, Setting.Property.Dynamic);
     public static final Setting<String> triggerIdxHost = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_HOST_KEY,
             Setting.Property.NodeScope, Setting.Property.Dynamic);
     public static final Setting<String> triggerIdxUser = Setting.simpleString(EsTriggerConstant.TRIGGER_IDX_USER_KEY,
             Setting.Property.NodeScope, Setting.Property.Dynamic);
     public static final Setting<String> triggerIdxPassword = Setting.simpleString(
             EsTriggerConstant.TRIGGER_IDX_PASSWD_KEY, Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<String> triggerIdxMaxScn = Setting.simpleString(
+            EsTriggerConstant.TRIGGER_IDX_MAX_SCN_KEY, Setting.Property.IndexScope, Setting.Property.Dynamic);
+    public final Setting<Boolean> cdcEnableSetting = Setting
+            .boolSetting(EsTriggerConstant.IDX_ENABLE_CDC_CONF_KEY, false, Setting.Property.IndexScope,
+                    Setting.Property.Dynamic);
 
     private final CcEs6IndexLifecycleRegistry lifecycleRegistry = new CcEs6IndexLifecycleRegistry();
 
@@ -54,6 +55,7 @@ public class CcEs6IdxTriggerPlugin extends Plugin {
     private CcEsTriggerIdxWriter triggerIdxWriter;
 
     public CcEs6IdxTriggerPlugin() {
+        settings.add(nodeTriggerIdxs);
         settings.add(cdcEnableSetting);
         settings.add(triggerIdxHost);
         settings.add(triggerIdxUser);
@@ -76,7 +78,7 @@ public class CcEs6IdxTriggerPlugin extends Plugin {
         log.info("Add index listener,index:" + indexModule.getIndex());
 
         final CcEs6IdxOpListener cdcListener = new CcEs6IdxOpListener(indexModule, triggerIdxWriter, clusterService,
-                lifecycleRegistry);
+                lifecycleRegistry, clusterService.getClusterSettings());
         cdcListener.start();
 
         indexModule.addSettingsUpdateConsumer(cdcEnableSetting, cdcListener);
@@ -95,7 +97,10 @@ public class CcEs6IdxTriggerPlugin extends Plugin {
             Es6ClientConn.instance.addHostSettingConsumer(clusterService.getClusterSettings());
             initIdxWriter();
             lifecycleRegistry.bootstrap(clusterService.state());
-            clusterService.addListener(new CcEs6ClusterStateListener(triggerIdxWriter, lifecycleRegistry));
+            boolean recoveryComplete = !clusterService.state().blocks()
+                    .hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+            clusterService.addListener(new CcEs6ClusterStateListener(triggerIdxWriter, lifecycleRegistry,
+                    clusterService.getClusterSettings(), recoveryComplete));
         } catch (Exception e) {
             // not throw, or will make ElasticSearch node fail.
             log.error("Create components FAILED,but ignore.msg:" + ExceptionUtils.getRootCauseMessage(e), e);

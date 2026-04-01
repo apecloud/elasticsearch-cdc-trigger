@@ -10,6 +10,8 @@ public class CcEs6SinkConstant {
 
     public static final String SRC_CONF_PREFIX = "node";
 
+    public static final String SOURCE_TRIGGER_ENABLED_KEY = SRC_CONF_PREFIX + ".source_trigger_enabled";
+
     public static final String SOURCE_TRIGGER_IDX_HOST_KEY = SRC_CONF_PREFIX + ".source_trigger_idx_host";
 
     public static final String SOURCE_TRIGGER_IDX_USER_KEY = SRC_CONF_PREFIX + ".source_trigger_idx_user";
