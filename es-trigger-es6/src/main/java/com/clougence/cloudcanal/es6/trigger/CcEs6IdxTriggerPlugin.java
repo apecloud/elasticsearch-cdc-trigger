@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -96,9 +97,11 @@ public class CcEs6IdxTriggerPlugin extends Plugin {
             this.clusterService = clusterService;
             Es6ClientConn.instance.addHostSettingConsumer(clusterService.getClusterSettings());
             initIdxWriter();
-            lifecycleRegistry.bootstrap(clusterService.state());
-            boolean recoveryComplete = !clusterService.state().blocks()
-                    .hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+            ClusterState currentState = clusterService.state();
+            lifecycleRegistry.bootstrap(currentState);
+            boolean recoveryComplete = currentState != null
+                    && currentState.blocks() != null
+                    && !currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
             clusterService.addListener(new CcEs6ClusterStateListener(triggerIdxWriter, lifecycleRegistry,
                     clusterService.getClusterSettings(), recoveryComplete));
         } catch (Exception e) {

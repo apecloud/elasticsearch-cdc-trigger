@@ -129,7 +129,7 @@ curl -X GET "$SRC_ES/ape_es_trigger_idx/_search?pretty" \
       "bool": {
         "must": [
           { "term": { "idx_name": "'"$IDX"'" } },
-          { "term": { "event_type": "CI" } }
+          { "term": { "event_type": "ci" } }
         ]
       }
     }
@@ -144,7 +144,7 @@ curl "$TGT_ES/$IDX?pretty"
 
 预期：
 
-- 源端 `ape_es_trigger_idx` 中出现一条 `event_type=CI`
+- 源端 `ape_es_trigger_idx` 中出现一条 `event_type=ci`
 - 目标端出现同名索引
 
 ## 4. CASE 2: INSERT
@@ -171,7 +171,7 @@ curl -X GET "$SRC_ES/ape_es_trigger_idx/_search?pretty" \
       "bool": {
         "must": [
           { "term": { "idx_name": "'"$IDX"'" } },
-          { "term": { "event_type": "I" } },
+          { "term": { "event_type": "i" } },
           { "term": { "pk": "1" } }
         ]
       }
@@ -215,7 +215,7 @@ curl -X GET "$SRC_ES/ape_es_trigger_idx/_search?pretty" \
       "bool": {
         "must": [
           { "term": { "idx_name": "'"$IDX"'" } },
-          { "term": { "event_type": "U" } },
+          { "term": { "event_type": "u" } },
           { "term": { "pk": "1" } }
         ]
       }
@@ -254,7 +254,7 @@ curl -X GET "$SRC_ES/ape_es_trigger_idx/_search?pretty" \
       "bool": {
         "must": [
           { "term": { "idx_name": "'"$IDX"'" } },
-          { "term": { "event_type": "D" } },
+          { "term": { "event_type": "d" } },
           { "term": { "pk": "1" } }
         ]
       }
@@ -293,7 +293,7 @@ curl -X GET "$SRC_ES/ape_es_trigger_idx/_search?pretty" \
       "bool": {
         "must": [
           { "term": { "idx_name": "'"$IDX"'" } },
-          { "term": { "event_type": "DI" } }
+          { "term": { "event_type": "di" } }
         ]
       }
     }
@@ -327,7 +327,7 @@ curl -X GET "$SRC_ES/ape_es_trigger_idx/_search?pretty" \
       "bool": {
         "must": [
           { "term": { "idx_name": "'"$IDX"'" } },
-          { "terms": { "event_type": ["CI", "I"] } }
+          { "terms": { "event_type": ["ci", "i"] } }
         ]
       }
     }
