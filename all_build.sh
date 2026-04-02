@@ -7,6 +7,10 @@ if [ "${SUB_PROJECT}" == "" ] ; then
   exit 1
 elif [ "${SUB_PROJECT}" == "es-trigger-es7" ] ; then
   echo "For es-trigger-es7 , need Java version >= 1.8"
+elif [ "${SUB_PROJECT}" == "es-trigger-es6" ] ; then
+  echo "For es-trigger-es6 , need Java version >= 1.8"
+elif [ "${SUB_PROJECT}" == "es-sink-es6" ] ; then
+  echo "For es-sink-es6 , need Java version >= 1.8"
 elif [ "${SUB_PROJECT}" == "es-trigger-es8" ]; then
   echo "For es-trigger-es8 , need Java version >= 17"
 else

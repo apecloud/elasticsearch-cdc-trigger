@@ -38,15 +38,17 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
     protected static final int batchSize = 1024;
 
+    protected static final long errorBackoffMs = 1000L;
+
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssSSS");
 
     private static final AtomicBoolean triggerIdxInitialized = new AtomicBoolean(false);
+    private static final AtomicBoolean writerStateReady = new AtomicBoolean(false);
 
     @Override
     public void start() {
         if (inited.compareAndSet(false, true)) {
             log.info(this.getClass().getSimpleName() + " begin to start.");
-            initTriggerIdxId();
             initWriterThread();
             log.info(this.getClass().getSimpleName() + " start successfully.");
         }
@@ -60,11 +62,12 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
     protected abstract void updateIncreIdToNextStep(long nextStart);
 
-    protected abstract void insertInner(Map<String, Object> doc, String srcIdx, String srcId);
+    protected abstract void insertInner(TriggerWriteEvent event);
 
-    private void initTriggerIdxId() {
+    private synchronized void initTriggerIdxId() {
         try {
             if (!isClientInited()) {
+                triggerIdxIdInited.compareAndSet(true, false);
                 return;
             }
 
@@ -83,11 +86,13 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
             incrementId.set(currVal);
 
+            writerStateReady.set(triggerIdxInitialized.get());
             triggerIdxIdInited.compareAndSet(false, true);
         } catch (Exception e) {
+            writerStateReady.set(false);
+            triggerIdxIdInited.compareAndSet(true, false);
             String msg = "Init trigger index settings failed,init later.msg:" + ExceptionUtils.getRootCauseMessage(e);
             log.error(msg, e);
-            // throw new RuntimeException(msg, e);
         }
     }
 
@@ -97,35 +102,49 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
     }
 
     @Override
-    public void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson)
-            throws IOException {
+    public synchronized void initializeWriterState() {
         if (!isClientInited()) {
-            log.warn("Es client is null,skip write data.");
+            writerStateReady.set(false);
+            triggerIdxInitialized.set(false);
+            triggerIdxIdInited.set(false);
             return;
         }
 
-        if (!triggerIdxInitialized.get() && initTriggerIdx()) {
-            log.info("Trigger index initialized successfully.");
-            triggerIdxInitialized.compareAndSet(false, true);
+        if (!initTriggerIdx()) {
+            writerStateReady.set(false);
+            triggerIdxInitialized.set(false);
+            triggerIdxIdInited.set(false);
+            return;
         }
 
-        Map<String, Object> doc = new HashMap<>();
-        long gid = nextId();
-        doc.put("scn", gid);
-        doc.put("idx_name", idxName);
-        doc.put("event_type", dataOp.getCode());
-        doc.put("pk", id);
-
-        if (docJson != null) {
-            doc.put("row_data", docJson);
+        triggerIdxInitialized.set(true);
+        initTriggerIdxId();
+        if (triggerIdxIdInited.get()) {
+            writerStateReady.set(true);
         }
-
-        doc.put("create_time", LocalDateTime.now().format(formatter));
-
-        insertInner(doc, idxName, id);
     }
 
-    private synchronized long nextId() {
+    protected boolean isWriterStateReady() {
+        return writerStateReady.get();
+    }
+
+    @Override
+    public void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson, String docType)
+            throws IOException {
+        try {
+            insertInner(new TriggerWriteEvent(idxName, dataOp, id, docJson, docType,
+                    LocalDateTime.now().format(formatter)));
+        } catch (Exception e) {
+            log.warn("Insert trigger event failed but ignore, idx_name:{}, event_type:{}, _id:{}, msg:{}", idxName,
+                    dataOp, id, ExceptionUtils.getRootCauseMessage(e));
+        }
+    }
+
+    protected synchronized long nextId() {
+        if (!writerStateReady.get()) {
+            throw new IllegalArgumentException("Trigger idx writer is not ready.");
+        }
+
         if (!triggerIdxIdInited.get()) {
             initTriggerIdxId();
 
@@ -136,6 +155,9 @@ public abstract class AbstractCcEsTriggerIdxWriter implements Runnable, CcEsTrig
 
         if (incrementId.get() >= currentStepMaxVal) {
             initTriggerIdxId();
+            if (!triggerIdxIdInited.get()) {
+                throw new IllegalArgumentException("Trigger idx id step can not be refreshed.");
+            }
         }
 
         return incrementId.incrementAndGet();

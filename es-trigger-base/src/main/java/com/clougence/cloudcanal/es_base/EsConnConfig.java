@@ -20,7 +20,7 @@ public class EsConnConfig {
 
     private boolean caCertificated;
 
-    private Integer soTimeoutMs          = 10 * 1000;
+    private Integer soTimeoutMs          = 5 * 1000;
 
     private Integer connTimeoutMs        = 5 * 1000;
 

@@ -7,6 +7,15 @@ import java.io.IOException;
  */
 public interface CcEsTriggerIdxWriter extends ComponentLifeCycle {
 
-    void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson) throws IOException;
+    default void initializeWriterState() {
+    }
+
+    default void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson)
+            throws IOException {
+        insertTriggerIdx(idxName, dataOp, id, docJson, null);
+    }
+
+    void insertTriggerIdx(String idxName, TriggerEventType dataOp, String id, String docJson, String docType)
+            throws IOException;
 
 }
